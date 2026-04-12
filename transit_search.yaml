@@ -13,11 +13,6 @@ wantType:
 
   finalResultField: summary
 
-  achievedWhen:
-    field: status
-    operator: "!="
-    value: "pending"
-
   parameters:
     - name: from
       description: Departure station or location
