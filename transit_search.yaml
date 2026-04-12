@@ -207,7 +207,6 @@ wantType:
 
   onInitialize:
     current:
-      status: "pending"
       skill_path: "~/.mywant/custom-types/mywant-transit-plugin/main.py"
       skill_args_keys: "from to time arrive_type"
 
