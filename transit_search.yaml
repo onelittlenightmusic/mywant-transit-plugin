@@ -211,11 +211,6 @@ wantType:
       onFetchData: "routes[0].legs[0].direction"
 
   onInitialize:
-    params:
-      from: from
-      to: to
-      time: time
-      arrive_type: arrive_type
     current:
       status: "pending"
       skill_path: "~/.mywant/custom-types/mywant-transit-plugin/main.py"
