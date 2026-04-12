@@ -4,8 +4,8 @@ wantType:
     title: Transit Route Found
     description: |
       Searches for transit routes using Yahoo!路線情報 via the transit skill.
-      Calls python3 ~/.mywant/skills/transit/main.py <from> <to> [time] [arrive_type].
-      The skill outputs JSON; state fields with onFetchData are populated automatically.
+      Calls python3 ~/.mywant/custom-types/mywant-transit-plugin/main.py <from> <to> [time] [arrive_type].
+      Empty optional args are filtered out automatically by do_mrs_agent.
       Completes after a single execution.
     version: '1.0'
     category: transit
@@ -46,6 +46,34 @@ wantType:
       example: "到着"
 
   state:
+    - name: skill_timeout_seconds
+      description: Max seconds to wait for the skill script to complete (default 120)
+      type: int
+      label: goal
+      persistent: false
+      initialValue: 120
+
+    - name: skill_path
+      description: Path to the MRS skill script (set by onInitialize)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    - name: skill_args_keys
+      description: Space-separated state field names used as positional CLI args (empty values filtered)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    - name: mrs_raw_output
+      description: Raw JSON output from the MRS skill (source for fetchFrom fields)
+      type: object
+      label: current
+      persistent: false
+      initialValue: null
+
     # ── パラメータコピー ──────────────────────────────────────────
     - name: from
       description: Departure location (copied from param)
@@ -97,6 +125,7 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "raw_text"
 
     # ── ルート0 (最初の推奨ルート) ────────────────────────────────
@@ -106,6 +135,7 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].summary"
 
     - name: duration_minutes
@@ -114,6 +144,7 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].duration_minutes"
 
     - name: fare
@@ -122,6 +153,7 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].fare"
 
     - name: transfers
@@ -130,6 +162,7 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].transfers"
 
     - name: departure
@@ -138,6 +171,7 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].departure"
 
     - name: arrival
@@ -146,14 +180,16 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].arrival"
 
     - name: legs_text
-      description: Human-readable route legs for the first route (e.g. "新宿(19:49) ─[山手線]→ 渋谷(19:56)")
+      description: Human-readable route legs for the first route
       type: string
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].legs_text"
 
     - name: first_line
@@ -162,14 +198,16 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].legs[0].line"
 
     - name: first_direction
-      description: Direction of the first transit line (e.g. "渋谷・品川方面")
+      description: Direction of the first transit line
       type: string
       label: current
       persistent: true
       initialValue: ""
+      fetchFrom: mrs_raw_output
       onFetchData: "routes[0].legs[0].direction"
 
   onInitialize:
@@ -180,35 +218,11 @@ wantType:
       arrive_type: arrive_type
     current:
       status: "pending"
+      skill_path: "~/.mywant/custom-types/mywant-transit-plugin/main.py"
+      skill_args_keys: "from to time arrive_type"
 
-  inlineAgents:
-    - name: run_transit_search
-      type: do
-      runtime: shell
-      script: |
-        #!/bin/sh
-        FROM=$(jq -r '.from // ""' "$MYWANT_CURRENT_FILE")
-        TO=$(jq -r '.to // ""' "$MYWANT_CURRENT_FILE")
-        TIME=$(jq -r '.time // ""' "$MYWANT_CURRENT_FILE")
-        ARRIVE=$(jq -r '.arrive_type // ""' "$MYWANT_CURRENT_FILE")
-
-        if [ -n "$TIME" ] && [ -n "$ARRIVE" ]; then
-          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" "$TIME" "$ARRIVE" 2>/dev/null)
-        elif [ -n "$TIME" ]; then
-          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" "$TIME" 2>/dev/null)
-        else
-          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" 2>/dev/null)
-        fi
-        EXIT_CODE=$?
-
-        if [ $EXIT_CODE -eq 0 ]; then
-          printf '{"json_data": %s, "current_updates": {"status": "done"}}' "$OUTPUT"
-        else
-          # error_out() in main.py writes JSON to stdout; extract error field if possible
-          ERROR_MSG=$(printf '%s' "$OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error','unknown error'))" 2>/dev/null || echo "transit script failed")
-          ESCAPED=$(printf '%s' "$ERROR_MSG" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
-          printf '{"current_updates": {"error": %s, "status": "failed"}}' "$ESCAPED"
-        fi
+  requires:
+    - do_mrs_agent
 
   examples:
     - name: Simple Route Search
