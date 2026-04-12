@@ -1,0 +1,236 @@
+wantType:
+  metadata:
+    name: transit_search
+    title: Transit Route Found
+    description: |
+      Searches for transit routes using Yahoo!路線情報 via the transit skill.
+      Calls python3 ~/.mywant/skills/transit/main.py <from> <to> [time] [arrive_type].
+      The skill outputs JSON; state fields with onFetchData are populated automatically.
+      Completes after a single execution.
+    version: '1.0'
+    category: transit
+    pattern: independent
+
+  finalResultField: summary
+
+  achievedWhen:
+    field: status
+    operator: "!="
+    value: "pending"
+
+  parameters:
+    - name: from
+      description: Departure station or location
+      type: string
+      required: true
+      example: 新宿
+
+    - name: to
+      description: Destination station or location
+      type: string
+      required: true
+      example: 渋谷
+
+    - name: time
+      description: Target time in HH:MM format (optional)
+      type: string
+      required: false
+      default: ""
+      example: "09:30"
+
+    - name: arrive_type
+      description: 到着 or 出発 (optional, used only when time is specified)
+      type: string
+      required: false
+      default: ""
+      example: "到着"
+
+  state:
+    # ── パラメータコピー ──────────────────────────────────────────
+    - name: from
+      description: Departure location (copied from param)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    - name: to
+      description: Destination (copied from param)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    - name: time
+      description: Target time (copied from param)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    - name: arrive_type
+      description: Arrive or depart (copied from param)
+      type: string
+      label: current
+      persistent: false
+      initialValue: ""
+
+    # ── 実行ステータス ────────────────────────────────────────────
+    - name: status
+      description: Execution status (pending, done, failed)
+      type: string
+      label: current
+      persistent: true
+      initialValue: "pending"
+
+    - name: error
+      description: Error message if execution failed
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+
+    # ── スキルJSON全体 ────────────────────────────────────────────
+    - name: raw_text
+      description: Raw text output from the transit search
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "raw_text"
+
+    # ── ルート0 (最初の推奨ルート) ────────────────────────────────
+    - name: summary
+      description: Summary of the first route (duration, transfers, fare)
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].summary"
+
+    - name: duration_minutes
+      description: Travel duration in minutes for the first route
+      type: int
+      label: current
+      persistent: true
+      initialValue: 0
+      onFetchData: "routes[0].duration_minutes"
+
+    - name: fare
+      description: Fare in yen for the first route
+      type: int
+      label: current
+      persistent: true
+      initialValue: 0
+      onFetchData: "routes[0].fare"
+
+    - name: transfers
+      description: Number of transfers for the first route
+      type: int
+      label: current
+      persistent: true
+      initialValue: 0
+      onFetchData: "routes[0].transfers"
+
+    - name: departure
+      description: Departure time of the first route (HH:MM)
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].departure"
+
+    - name: arrival
+      description: Arrival time of the first route (HH:MM)
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].arrival"
+
+    - name: legs_text
+      description: Human-readable route legs for the first route (e.g. "新宿(19:49) ─[山手線]→ 渋谷(19:56)")
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].legs_text"
+
+    - name: first_line
+      description: Name of the first transit line in the first route
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].legs[0].line"
+
+    - name: first_direction
+      description: Direction of the first transit line (e.g. "渋谷・品川方面")
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+      onFetchData: "routes[0].legs[0].direction"
+
+  onInitialize:
+    params:
+      from: from
+      to: to
+      time: time
+      arrive_type: arrive_type
+    current:
+      status: "pending"
+
+  inlineAgents:
+    - name: run_transit_search
+      type: do
+      runtime: shell
+      script: |
+        #!/bin/sh
+        FROM=$(jq -r '.from // ""' "$MYWANT_CURRENT_FILE")
+        TO=$(jq -r '.to // ""' "$MYWANT_CURRENT_FILE")
+        TIME=$(jq -r '.time // ""' "$MYWANT_CURRENT_FILE")
+        ARRIVE=$(jq -r '.arrive_type // ""' "$MYWANT_CURRENT_FILE")
+
+        if [ -n "$TIME" ] && [ -n "$ARRIVE" ]; then
+          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" "$TIME" "$ARRIVE" 2>/dev/null)
+        elif [ -n "$TIME" ]; then
+          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" "$TIME" 2>/dev/null)
+        else
+          OUTPUT=$(python3 ~/.mywant/skills/transit/main.py "$FROM" "$TO" 2>/dev/null)
+        fi
+        EXIT_CODE=$?
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          printf '{"json_data": %s, "current_updates": {"status": "done"}}' "$OUTPUT"
+        else
+          # error_out() in main.py writes JSON to stdout; extract error field if possible
+          ERROR_MSG=$(printf '%s' "$OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error','unknown error'))" 2>/dev/null || echo "transit script failed")
+          ESCAPED=$(printf '%s' "$ERROR_MSG" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
+          printf '{"current_updates": {"error": %s, "status": "failed"}}' "$ESCAPED"
+        fi
+
+  examples:
+    - name: Simple Route Search
+      description: Search transit route from Shinjuku to Shibuya
+      want:
+        metadata:
+          name: shinjuku_to_shibuya
+          type: transit_search
+        spec:
+          params:
+            from: 新宿
+            to: 渋谷
+
+    - name: Route Search with Arrival Time
+      description: Search route arriving at Shibuya by 09:30
+      want:
+        metadata:
+          name: shinjuku_shibuya_arrival
+          type: transit_search
+        spec:
+          params:
+            from: 新宿
+            to: 渋谷
+            time: "09:30"
+            arrive_type: 到着
