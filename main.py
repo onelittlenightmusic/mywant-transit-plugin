@@ -54,8 +54,12 @@ def parse_args(args: list[str]) -> tuple[str, str, str, str]:
     return from_station, to_station, time_str, dep_arr
 
 
+def report_progress(percentage, message=""):
+    print(json.dumps({"_progress": percentage, "_message": message}, ensure_ascii=False), flush=True)
+
+
 def error_out(message: str) -> None:
-    print(json.dumps({"error": message, "routes": []}, ensure_ascii=False))
+    print(json.dumps({"error": message, "routes": []}, ensure_ascii=False), flush=True)
     sys.exit(1)
 
 
@@ -263,6 +267,7 @@ def search_and_extract(page, from_st: str, to_st: str, time_str: str, dep_arr: s
 def main() -> None:
     from_st, to_st, time_str, dep_arr = parse_args(sys.argv[1:])
 
+    report_progress(5, "Connecting to browser")
     with sync_playwright() as p:
         try:
             browser = p.chromium.connect_over_cdp(CDP_URL)
@@ -272,8 +277,12 @@ def main() -> None:
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         page = context.pages[0] if context.pages else context.new_page()
 
+        report_progress(20, f"Searching route: {from_st} → {to_st}")
         data = search_and_extract(page, from_st, to_st, time_str, dep_arr)
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+
+    report_progress(90, f"Found {len(data.get('routes', []))} routes")
+    report_progress(100, "Done")
+    print(json.dumps(data, ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":
