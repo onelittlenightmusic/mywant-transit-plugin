@@ -1,0 +1,59 @@
+agent:
+  metadata:
+    name: transit_search_agent
+    capability: transit_search
+    type: do
+  script:
+    path: ./main.py
+    timeout_seconds: 120
+  state_updates:
+    - name: raw_text
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "raw_text"
+    - name: summary
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].summary"
+    - name: duration_minutes
+      type: int
+      label: current
+      persistent: true
+      onFetchData: "routes[0].duration_minutes"
+    - name: fare
+      type: int
+      label: current
+      persistent: true
+      onFetchData: "routes[0].fare"
+    - name: transfers
+      type: int
+      label: current
+      persistent: true
+      onFetchData: "routes[0].transfers"
+    - name: departure
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].departure"
+    - name: arrival
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].arrival"
+    - name: legs_text
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].legs_text"
+    - name: first_line
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].legs[0].line"
+    - name: first_direction
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].legs[0].direction"

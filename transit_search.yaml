@@ -41,33 +41,12 @@ wantType:
       example: "到着"
 
   state:
-    - name: skill_timeout_seconds
-      description: Max seconds to wait for the skill script to complete (default 120)
-      type: int
-      label: goal
-      persistent: false
-      initialValue: 120
-
-    - name: skill_path
-      description: Path to the MRS skill script (set by onInitialize)
-      type: string
-      label: current
-      persistent: false
-      initialValue: ""
-
     - name: skill_args_keys
       description: Space-separated state field names used as positional CLI args (empty values filtered)
       type: string
       label: current
       persistent: false
       initialValue: ""
-
-    - name: mrs_raw_output
-      description: Raw JSON output from the MRS skill (source for fetchFrom fields)
-      type: object
-      label: current
-      persistent: false
-      initialValue: null
 
     # ── パラメータコピー ──────────────────────────────────────────
     - name: from
@@ -112,8 +91,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "raw_text"
 
     # ── ルート0 (最初の推奨ルート) ────────────────────────────────
     - name: summary
@@ -122,8 +99,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].summary"
 
     - name: duration_minutes
       description: Travel duration in minutes for the first route
@@ -131,8 +106,6 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].duration_minutes"
 
     - name: fare
       description: Fare in yen for the first route
@@ -140,8 +113,6 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].fare"
 
     - name: transfers
       description: Number of transfers for the first route
@@ -149,8 +120,6 @@ wantType:
       label: current
       persistent: true
       initialValue: 0
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].transfers"
 
     - name: departure
       description: Departure time of the first route (HH:MM)
@@ -158,8 +127,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].departure"
 
     - name: arrival
       description: Arrival time of the first route (HH:MM)
@@ -167,8 +134,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].arrival"
 
     - name: legs_text
       description: Human-readable route legs for the first route
@@ -176,8 +141,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].legs_text"
 
     - name: first_line
       description: Name of the first transit line in the first route
@@ -185,8 +148,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].legs[0].line"
 
     - name: first_direction
       description: Direction of the first transit line
@@ -194,8 +155,6 @@ wantType:
       label: current
       persistent: true
       initialValue: ""
-      fetchFrom: mrs_raw_output
-      onFetchData: "routes[0].legs[0].direction"
 
   finalizeWhen:
     achieved:
@@ -209,11 +168,10 @@ wantType:
 
   onInitialize:
     current:
-      skill_path: "~/.mywant/custom-types/mywant-transit-plugin/main.py"
       skill_args_keys: "from to time arrive_type"
 
   requires:
-    - do_mrs_agent
+    - transit_search
 
   examples:
     - name: Simple Route Search

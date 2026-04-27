@@ -275,10 +275,13 @@ def main() -> None:
             error_out(f"ブラウザに接続できません ({CDP_URL}): {e}")
 
         context = browser.contexts[0] if browser.contexts else browser.new_context()
-        page = context.pages[0] if context.pages else context.new_page()
+        page = context.new_page()
 
         report_progress(20, f"Searching route: {from_st} → {to_st}")
-        data = search_and_extract(page, from_st, to_st, time_str, dep_arr)
+        try:
+            data = search_and_extract(page, from_st, to_st, time_str, dep_arr)
+        finally:
+            page.close()
 
     report_progress(90, f"Found {len(data.get('routes', []))} routes")
     report_progress(100, "Done")
