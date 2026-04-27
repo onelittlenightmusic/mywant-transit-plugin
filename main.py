@@ -32,7 +32,7 @@ try:
 except ImportError:
     print(json.dumps({
         "error": "playwright module not found. Install with: pip3 install playwright && playwright install chromium"
-    }, ensure_ascii=False))
+    }, ensure_ascii=False), flush=True)
     sys.exit(1)
 
 CDP_URL = "http://127.0.0.1:9222"
@@ -285,7 +285,7 @@ def main() -> None:
 
     report_progress(90, f"Found {len(data.get('routes', []))} routes")
     report_progress(100, "Done")
-    print(json.dumps(data, ensure_ascii=False, indent=2), flush=True)
+    print(json.dumps(data, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":
