@@ -98,14 +98,6 @@ wantType:
       persistent: false
       initialValue: ""
 
-    # ── 実行ステータス ────────────────────────────────────────────
-    - name: status
-      description: Execution status (pending, done, failed)
-      type: string
-      label: current
-      persistent: true
-      initialValue: "pending"
-
     - name: error
       description: Error message if execution failed
       type: string
@@ -204,6 +196,16 @@ wantType:
       initialValue: ""
       fetchFrom: mrs_raw_output
       onFetchData: "routes[0].legs[0].direction"
+
+  finalizeWhen:
+    achieved:
+      field: mrs_raw_output
+      operator: "!="
+      value: null
+    failed:
+      field: error
+      operator: "!="
+      value: ""
 
   onInitialize:
     current:
