@@ -7,7 +7,6 @@ compatibility:
     - playwright (sync_api)
     - Chrome with remote debugging on port 9222
 metadata:
-  output-format: json
   json-schema: see "出力JSON形式" section below
 ---
 
