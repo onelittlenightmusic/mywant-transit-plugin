@@ -11,7 +11,7 @@ wantType:
     category: transit
     pattern: independent
 
-  finalResultField: summary
+  finalResultField: itinerary
 
   parameters:
     - name: from
