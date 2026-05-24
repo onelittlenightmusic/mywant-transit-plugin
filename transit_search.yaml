@@ -94,7 +94,10 @@ wantType:
 
     # ── ルート0 (最初の推奨ルート) ────────────────────────────────
     - name: summary
-      description: Summary of the first route (duration, transfers, fare)
+      description: |
+        JSON string summarising the best route, including itinerary array.
+        Fields: from, to, query_time, query_type, departure, arrival,
+        duration_minutes, fare, transfers, text_summary, legs_text, itinerary.
       type: string
       label: current
       persistent: true
@@ -156,11 +159,21 @@ wantType:
       persistent: true
       initialValue: ""
 
+    # ── 経由地・利用電車リスト ────────────────────────────────────
+    - name: itinerary
+      description: |
+        Array of transit segments for the first route.
+        Each element: {from, depart_time, line, direction, to, arrive_time}
+      type: array
+      label: current
+      persistent: true
+      initialValue: []
+
   finalizeWhen:
     achieved:
-      field: mrs_raw_output
+      field: summary
       operator: "!="
-      value: null
+      value: ""
     failed:
       field: error
       operator: "!="

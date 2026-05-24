@@ -57,3 +57,8 @@ agent:
       label: current
       persistent: true
       onFetchData: "routes[0].legs[0].direction"
+    - name: itinerary
+      type: array
+      label: current
+      persistent: true
+      onFetchData: "routes[0].itinerary"
