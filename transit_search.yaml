@@ -8,8 +8,12 @@ wantType:
       Empty optional args are filtered out automatically by do_mrs_agent.
       Completes after a single execution.
     version: '1.0'
-    category: transit
+    category: transport
     pattern: independent
+    labels:
+      category-icon: TrainFront
+      category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
+      category-bg-dark: "linear-gradient(160deg, #0e7490 0%, #083344 100%)"
 
   finalResultField: itinerary
 
@@ -19,17 +23,20 @@ wantType:
       type: string
       required: true
       example: 新宿
+      subType: station
 
     - name: to
       description: Destination station or location
       type: string
       required: true
       example: 渋谷
+      subType: station
 
     - name: time
       description: Target time in HH:MM format (optional)
       type: string
-      required: false
+      subType: time
+      required: false 
       default: ""
       example: "09:30"
 
@@ -66,7 +73,8 @@ wantType:
     - name: time
       description: Target time (copied from param)
       type: string
-      label: current
+      subType: time
+      label: current 
       persistent: false
       initialValue: ""
 
