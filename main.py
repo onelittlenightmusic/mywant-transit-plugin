@@ -2,6 +2,10 @@
 """
 transit: Yahoo!路線情報で乗り換え案内を検索してJSONで出力する。
 
+結果ページはサーバー側で組み立てられるので、検索条件をクエリに載せて取得した
+HTML を innerText 相当の行に落とせば足りる。ブラウザも外部パッケージも要らない
+（Python 標準ライブラリのみ）。
+
 使い方:
   python3 main.py <出発地> <目的地> [HH:MM] [出発|到着]
 
@@ -30,19 +34,19 @@ transit: Yahoo!路線情報で乗り換え案内を検索してJSONで出力す�
   "raw_text": "..."
 }
 """
+import datetime
+import html as html_module
 import json
 import re
 import sys
-try:
-    from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
-except ImportError:
-    print(json.dumps({
-        "error": "playwright module not found. Install with: pip3 install playwright && playwright install chromium"
-    }, ensure_ascii=False), flush=True)
-    sys.exit(1)
+import urllib.error
+import urllib.parse
+import urllib.request
 
-CDP_URL = "http://127.0.0.1:9222"
-YAHOO_TRANSIT_URL = "https://transit.yahoo.co.jp/"
+SEARCH_URL = "https://transit.yahoo.co.jp/search/result"
+USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+TIMEOUT_SECONDS = 20
 
 
 def parse_args(args: list[str]) -> tuple[str, str, str, str]:
@@ -69,64 +73,145 @@ def error_out(message: str) -> None:
     sys.exit(1)
 
 
+STATION_NOISE = ["時刻表", "出口", "地図", "乗り換え", "構内図", "バス停地図"]
+
+
 def clean_station_name(raw: str) -> str:
     """UI付加テキスト（時刻表・出口・地図など）を除去して駅名だけ返す。"""
-    for noise in ["時刻表", "出口", "地図", "乗り換え", "構内図", "バス停地図"]:
+    for noise in STATION_NOISE:
         raw = raw.replace(noise, "")
     return raw.strip()
 
 
-# ── ページ操作 ────────────────────────────────────────────────────────────────
+def station_after_marker(marker: str, lines: list[str], index: int) -> tuple[str, int]:
+    """発着マーカーに続く駅名を返す（一致しなければ空文字）。
 
-def fill_and_submit(page, from_st: str, to_st: str, time_str: str, dep_arr: str) -> None:
-    page.goto(YAHOO_TRANSIT_URL, wait_until="domcontentloaded", timeout=15000)
-    try:
-        page.wait_for_selector("form", timeout=10000)
-    except PlaywrightTimeout:
-        error_out("Yahoo!路線情報の読み込みがタイムアウトしました。")
+    ブラウザは表のセルを 1 行にまとめて "発\t新宿" にするが、HTML から起こすと
+    "発" と "新宿" が別の行になる。どちらの形でも読めるようにしておく。
+    """
+    if index >= len(lines):
+        return "", index
+    line = lines[index]
+    same_line = re.match(rf"^{marker}[\t\s]+(.+)", line)
+    if same_line:
+        return clean_station_name(same_line.group(1)), index + 1
+    if line == marker and index + 1 < len(lines):
+        return clean_station_name(lines[index + 1]), index + 2
+    return "", index
 
-    from_input = (page.query_selector("input#sfrom")
-                  or page.query_selector("input[name='from']")
-                  or page.query_selector("input[placeholder*='出発']"))
-    if not from_input:
-        error_out("出発地入力欄が見つかりません。")
-    from_input.fill(from_st)
 
-    to_input = (page.query_selector("input#sto")
-                or page.query_selector("input[name='to']")
-                or page.query_selector("input[placeholder*='到着']"))
-    if not to_input:
-        error_out("目的地入力欄が見つかりません。")
-    to_input.fill(to_st)
+# ── 取得 ─────────────────────────────────────────────────────────────────────
 
+def build_search_url(from_st: str, to_st: str, time_str: str, dep_arr: str) -> str:
+    """検索条件をそのままクエリに載せる。結果ページはサーバー側で組み立てられるので、
+    フォームを操作する必要はない。"""
+    params = {
+        "from":   from_st,
+        "to":     to_st,
+        "ticket": "ic",
+        # type=1: 指定時刻に出発 / type=4: 指定時刻に到着
+        "type":   "4" if dep_arr == "到着" else "1",
+        # 交通手段はサイトのフォーム初期値に合わせる。URL 検索では既定で
+        # 新幹線が外れるため、明示しないと東京→新大阪が在来線だけになる。
+        "shin":   "1",  # 新幹線
+        "ex":     "1",  # 有料特急
+        "hb":     "1",  # 高速バス
+        "al":     "1",  # 飛行機
+        "lb":     "1",  # 連絡バス
+        "sr":     "1",  # 座席指定
+    }
     if time_str:
-        h, m = time_str.split(":")
-        hour_sel = page.query_selector("select[name='hh']") or page.query_selector("select#hh")
-        min_sel  = page.query_selector("select[name='m1']") or page.query_selector("select#m1")
-        if hour_sel:
-            hour_sel.select_option(h.zfill(2))
-        if min_sel:
-            min_sel.select_option(m.zfill(2))
-        if dep_arr == "到着":
-            arr_radio = (page.query_selector("input[value='1'][name='type']")
-                         or page.query_selector("input[id*='arrival']"))
-            if arr_radio:
-                arr_radio.click()
+        hour, minute = time_str.split(":")
+        today = datetime.date.today()
+        params.update({
+            "y":  f"{today.year:04d}",
+            "m":  f"{today.month:02d}",
+            "d":  f"{today.day:02d}",
+            "hh": f"{int(hour):02d}",
+            # 分は十の位と一の位を別パラメータで渡す Yahoo 独自の形式
+            "m1": str(int(minute) // 10),
+            "m2": str(int(minute) % 10),
+        })
+    return SEARCH_URL + "?" + urllib.parse.urlencode(params)
 
-    submit_btn = (page.query_selector("input[type='submit'][value*='検索']")
-                  or page.query_selector("button[type='submit']")
-                  or page.query_selector("input.searchBtn"))
-    if not submit_btn:
-        error_out("検索ボタンが見つかりません。")
-    submit_btn.click()
 
+def fetch_page(url: str) -> str:
+    request = urllib.request.Request(url, headers={
+        "User-Agent":      USER_AGENT,
+        "Accept-Language": "ja,en;q=0.8",
+    })
     try:
-        page.wait_for_selector(".routeResult, .routeList, #result", timeout=15000)
-    except PlaywrightTimeout:
-        error_out("検索結果の読み込みがタイムアウトしました。")
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            return response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        error_out(f"Yahoo!路線情報が {exc.code} を返しました")
+    except urllib.error.URLError as exc:
+        error_out(f"Yahoo!路線情報に接続できません: {exc.reason}")
+    except TimeoutError:
+        error_out(f"Yahoo!路線情報が {TIMEOUT_SECONDS} 秒以内に応答しませんでした")
+    return ""  # error_out で終了済み
 
 
-# ── テキストパーサー ──────────────────────────────────────────────────────────
+# ブラウザの innerText と同じ行に落とすためのタグ分類。ブロック要素は改行、
+# 表のセルはタブ、インライン要素（span/a/strong など）は区切らない。
+BLOCK_END_TAGS = r"</(?:div|p|li|tr|h[1-6]|dt|dd|table|ul|ol|section|article|form|header|footer)>"
+
+
+def html_to_lines(html: str) -> list[str]:
+    """結果ページの HTML を innerText 相当の行リストに変換する。"""
+    html = re.sub(r"(?is)<(script|style|noscript).*?</\1>", " ", html)
+    html = re.sub(r"(?i)<br\s*/?>", "\n", html)
+    html = re.sub(r"(?i)</(td|th)>", "\t", html)
+    # 路線名と方面は同じ行に並ぶので、方面だけタブで切り出せるようにしておく
+    html = re.sub(r'(?i)<span class="destination">', "\t", html)
+    html = re.sub("(?i)" + BLOCK_END_TAGS, "\n", html)
+    html = re.sub(r"(?s)<[^>]+>", "", html)
+    html = html_module.unescape(html)
+
+    lines: list[str] = []
+    for line in html.splitlines():
+        line = re.sub(r"[ \u3000]+", " ", line).strip()
+        line = re.sub(r"\t+", "\t", line).strip("\t ")
+        if line:
+            lines.append(line)
+    return lines
+
+
+def parse_transfer_at(lines: list[str], index: int) -> tuple[str, str, str, int] | None:
+    """乗換駅の "HH:MM着" "HH:MM発" "駅名" の並びを読む。
+
+    起終点は時刻と発着マーカーが別行になるが、乗換駅では時刻に発着が付いて
+    到着・出発が続けて並ぶ。返り値は (到着時刻, 出発時刻, 駅名, 次の走査位置)。
+    """
+    if index + 2 >= len(lines):
+        return None
+    arrive = re.match(r"^(\d{1,2}:\d{2})着$", lines[index])
+    depart = re.match(r"^(\d{1,2}:\d{2})発$", lines[index + 1])
+    if not arrive or not depart:
+        return None
+    station = clean_station_name(lines[index + 2])
+    if not station:
+        return None
+    return arrive.group(1), depart.group(1), station, index + 3
+
+
+def fill_line_and_direction(leg: dict, lines: list[str], start: int) -> None:
+    """出発legの後続行から路線名と方面を拾う。"""
+    for j in range(start, min(start + 8, len(lines))):
+        line = lines[j]
+        if re.match(r"^\[発\]", line) or re.match(r"^\d+駅", line) or re.match(r"^\d{1,2}:\d{2}", line):
+            break
+        if line in STATION_NOISE:
+            continue
+        if line and "円" not in line and not re.match(r"^\d", line):
+            # "ＪＲ山手線内回り\t渋谷・品川方面" のようにタブ区切りで届く
+            name, _, destination = line.partition("\t")
+            if not leg["line"]:
+                leg["line"] = name.strip()
+                leg["direction"] = destination.strip()
+            elif not leg["direction"]:
+                leg["direction"] = name.strip()
+
 
 def parse_routes_from_lines(lines: list[str]) -> list[dict]:
     """
@@ -197,18 +282,35 @@ def parse_single_route(num: int, lines: list[str]) -> dict:
                 route["fare"] = int(m.group(1).replace(",", ""))
 
     # 区間(leg)を抽出
-    # パターン: 単独時刻行 → 次行が "発\t駅名..." or "着\t駅名..."
+    # パターン1（乗換駅）: "05:02着" "05:10発" "品川" と時刻に発着が付いて並ぶ
+    # パターン2（起終点）: 単独時刻行 → 次行が "発"/"着"（同一行にタブ区切りの場合もある）
     i = 0
     while i < len(lines):
+        transfer = parse_transfer_at(lines, i)
+        if transfer:
+            arrive_time, depart_time, station, after = transfer
+            route["legs"].append({"type": "arrive", "time": arrive_time, "station": station})
+            leg = {
+                "type": "depart",
+                "time": depart_time,
+                "station": station,
+                "line": "",
+                "direction": "",
+            }
+            fill_line_and_direction(leg, lines, after)
+            route["legs"].append(leg)
+            i = after
+            continue
+
         if re.match(r"^\d{1,2}:\d{2}$", lines[i]) and i + 1 < len(lines):
             time_val = lines[i]
             next_line = lines[i + 1]
 
-            dep_m = re.match(r"^発[\t\s]+(.+)", next_line)
-            arr_m = re.match(r"^着[\t\s]+(.+)", next_line)
+            dep_station, after_dep = station_after_marker("発", lines, i + 1)
+            arr_station, after_arr = station_after_marker("着", lines, i + 1)
 
-            if dep_m:
-                station = clean_station_name(dep_m.group(1))
+            if dep_station:
+                station = dep_station
                 leg: dict = {
                     "type": "depart",
                     "time": time_val,
@@ -216,24 +318,14 @@ def parse_single_route(num: int, lines: list[str]) -> dict:
                     "line": "",
                     "direction": "",
                 }
-                # 後続行から路線名・方面を取得
-                for j in range(i + 2, min(i + 8, len(lines))):
-                    l = lines[j]
-                    if re.match(r"^\[発\]", l) or re.match(r"^\d+駅", l) or re.match(r"^\d{1,2}:\d{2}$", l):
-                        break
-                    if l and "円" not in l and not re.match(r"^\d", l):
-                        if not leg["line"]:
-                            leg["line"] = l
-                        elif not leg["direction"]:
-                            leg["direction"] = l
+                fill_line_and_direction(leg, lines, after_dep)
                 route["legs"].append(leg)
-                i += 2
+                i = after_dep
                 continue
 
-            elif arr_m:
-                station = clean_station_name(arr_m.group(1))
-                route["legs"].append({"type": "arrive", "time": time_val, "station": station})
-                i += 2
+            elif arr_station:
+                route["legs"].append({"type": "arrive", "time": time_val, "station": arr_station})
+                i = after_arr
                 continue
 
         i += 1
@@ -325,11 +417,8 @@ def build_route_summary(route: dict, from_st: str, to_st: str,
 
 # ── メイン ───────────────────────────────────────────────────────────────────
 
-def search_and_extract(page, from_st: str, to_st: str, time_str: str, dep_arr: str) -> dict:
-    fill_and_submit(page, from_st, to_st, time_str, dep_arr)
-
-    raw = page.inner_text("body")
-    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) -> dict:
+    lines = html_to_lines(fetch_page(build_search_url(from_st, to_st, time_str, dep_arr)))
 
     routes = parse_routes_from_lines(lines)
 
@@ -354,22 +443,13 @@ def search_and_extract(page, from_st: str, to_st: str, time_str: str, dep_arr: s
 def main() -> None:
     from_st, to_st, time_str, dep_arr = parse_args(sys.argv[1:])
 
-    report_progress(5, "Launching browser")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(user_agent=(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        ))
-        page = context.new_page()
+    report_progress(20, f"Searching route: {from_st} → {to_st}")
+    data = search_and_extract(from_st, to_st, time_str, dep_arr)
 
-        report_progress(20, f"Searching route: {from_st} → {to_st}")
-        try:
-            data = search_and_extract(page, from_st, to_st, time_str, dep_arr)
-        finally:
-            page.close()
+    if not data["routes"]:
+        error_out(f"{from_st} → {to_st} のルートが見つかりませんでした")
 
-    report_progress(90, f"Found {len(data.get('routes', []))} routes")
+    report_progress(90, f"Found {len(data['routes'])} routes")
     report_progress(100, "Done")
     print(json.dumps(data, ensure_ascii=False), flush=True)
 

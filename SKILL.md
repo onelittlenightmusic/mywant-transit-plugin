@@ -1,11 +1,10 @@
 ---
 name: mywant-transit-plugin
-description: Yahoo!路線情報で乗り換え案内を検索し結果をJSONで返す。電車・バスの経路検索、出発・到着時刻の確認、乗換回数・料金の取得が必要なときに使用する。Playwright経由でChromeのCDPに接続する。
+description: Yahoo!路線情報で乗り換え案内を検索し結果をJSONで返す。電車・バスの経路検索、出発・到着時刻の確認、乗換回数・料金の取得が必要なときに使用する。Python標準ライブラリのみで動作し、ブラウザを必要としない。
 compatibility:
   python: ">=3.10"
   requires:
-    - playwright (sync_api)
-    - Chrome with remote debugging on port 9222
+    - standard library only (urllib, re, json)
 metadata:
   json-schema: see "出力JSON形式" section below
 ---
@@ -94,5 +93,5 @@ python3 "${CLAUDE_SKILL_DIR}/main.py" 新宿 渋谷 09:30 到着
 ### エラー時
 
 ```json
-{ "error": "ブラウザに接続できません (http://127.0.0.1:9222): ...", "routes": [] }
+{ "error": "Yahoo!路線情報に接続できません: ...", "routes": [] }
 ```

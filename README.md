@@ -23,4 +23,4 @@ spec:
 
 ## Requirements
 
-- Python 3, Playwright, Chrome with remote debugging
+- Python 3.10+ only (standard library; no browser, no third-party packages)
