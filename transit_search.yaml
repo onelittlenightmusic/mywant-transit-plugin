@@ -11,6 +11,9 @@ wantType:
     category: transport
     pattern: independent
     labels:
+      # A memo value is where the user wants to GO, so it fills `to`;
+      # `from` stays empty for the recommendations to offer.
+      seed-param: to
       riffable: source
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
