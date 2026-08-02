@@ -63,6 +63,7 @@ wantType:
     - name: from
       description: Departure location (copied from param)
       type: string
+      subType: station
       label: current
       persistent: false
       initialValue: ""
@@ -70,6 +71,7 @@ wantType:
     - name: to
       description: Destination (copied from param)
       type: string
+      subType: station
       label: current
       persistent: false
       initialValue: ""
@@ -139,6 +141,7 @@ wantType:
     - name: departure
       description: Departure time of the first route (HH:MM)
       type: string
+      subType: time
       label: current
       persistent: true
       initialValue: ""
@@ -146,6 +149,7 @@ wantType:
     - name: arrival
       description: Arrival time of the first route (HH:MM)
       type: string
+      subType: time
       label: current
       persistent: true
       initialValue: ""
