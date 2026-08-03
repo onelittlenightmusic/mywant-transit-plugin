@@ -62,3 +62,8 @@ agent:
       label: current
       persistent: true
       onFetchData: "routes[0].itinerary"
+    - name: routes
+      type: array
+      label: current
+      persistent: true
+      onFetchData: "route_views"
