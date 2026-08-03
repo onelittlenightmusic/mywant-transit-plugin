@@ -31,6 +31,11 @@ HTML を innerText 相当の行に落とせば足りる。ブラウザも外部�
       "legs_text": "新宿(09:05) ─[ＪＲ山手線]→ 渋谷(09:30)"
     }
   ],
+  // カード描画用の軽量版（全ルート候補）。routes から legs/summary を落としたもの
+  "route_views": [
+    {"index": 1, "departure": "09:05", "arrival": "09:30", "duration_minutes": 25,
+     "fare": 220, "transfers": 1, "itinerary": [...]}
+  ],
   "raw_text": "..."
 }
 """
@@ -415,6 +420,22 @@ def build_route_summary(route: dict, from_st: str, to_st: str,
     }
 
 
+def build_route_view(route: dict) -> dict:
+    """
+    カード表示用の軽量ルート情報。routes をそのまま state に載せると legs や
+    summary(JSON文字列) が重複して肥大するので、描画に要る分だけを取り出す。
+    """
+    return {
+        "index":            route.get("index", 0),
+        "departure":        route.get("departure", ""),
+        "arrival":          route.get("arrival", ""),
+        "duration_minutes": route.get("duration_minutes", 0),
+        "fare":             route.get("fare", 0),
+        "transfers":        route.get("transfers", 0),
+        "itinerary":        route.get("itinerary", []),
+    }
+
+
 # ── メイン ───────────────────────────────────────────────────────────────────
 
 def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) -> dict:
@@ -431,12 +452,13 @@ def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) ->
         )
 
     return {
-        "from":       from_st,
-        "to":         to_st,
-        "query_time": time_str,
-        "query_type": dep_arr,
-        "routes":     routes,
-        "raw_text":   "\n".join(lines[:80]),
+        "from":        from_st,
+        "to":          to_st,
+        "query_time":  time_str,
+        "query_type":  dep_arr,
+        "routes":      routes,
+        "route_views": [build_route_view(r) for r in routes],
+        "raw_text":    "\n".join(lines[:80]),
     }
 
 

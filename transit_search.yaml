@@ -185,6 +185,17 @@ wantType:
       persistent: true
       initialValue: []
 
+    # ── 全ルート候補（乗り換えパターン違い） ──────────────────────
+    - name: routes
+      description: |
+        All route candidates returned by the search, lightest form.
+        Each element: {index, departure, arrival, duration_minutes, fare,
+        transfers, itinerary}. The card lists these vertically when expanded.
+      type: array
+      label: current
+      persistent: true
+      initialValue: []
+
   finalizeWhen:
     achieved:
       field: summary
