@@ -11,6 +11,10 @@ wantType:
     category: transport
     pattern: independent
     labels:
+      # Drawn on the canvas as an arrow: from → to, a dot at each end.
+      form-type: arrow
+      # …drawn as track: this want is a train journey.
+      form-style: rail
       # A memo value is where the user wants to GO, so it fills `to`;
       # `from` stays empty for the recommendations to offer.
       seed-param: to
