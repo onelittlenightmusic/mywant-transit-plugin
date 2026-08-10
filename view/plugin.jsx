@@ -129,6 +129,27 @@ const CSS = `
 .ts-meta-sub { color:#6b7280; font-variant-numeric:tabular-nums; }
 .ts-empty { text-align:center; color:#9ca3af; padding:0 12px; }
 
+/* Swap bar — the one thing you DO to a route search, so it sits along the
+   bottom of the expanded card where a control belongs. */
+.ts-swap { display:flex; align-items:center; justify-content:center; gap:10px;
+           padding:8px 12px; border-top:1px solid rgba(0,0,0,0.08); }
+.ts-swap-ends { display:flex; align-items:center; gap:6px; min-width:0;
+                font-size:0.85em; color:#374151; }
+.ts-swap-end { max-width:8em; overflow:hidden; text-overflow:ellipsis;
+               white-space:nowrap; font-weight:600; }
+.ts-swap-btn { flex-shrink:0; display:inline-flex; align-items:center; gap:6px;
+               padding:5px 12px; border-radius:999px; border:1px solid #0e7490;
+               background:#ecfeff; color:#0e7490; font-weight:600;
+               font-size:0.85em; cursor:pointer; transition:filter .15s; }
+.ts-swap-btn:hover:not(:disabled) { filter:brightness(0.96); }
+.ts-swap-btn:disabled { opacity:0.5; cursor:default; }
+.ts-swap-btn:focus-visible { outline:3px solid #22d3ee; outline-offset:2px; }
+.ts-swap-err { color:#dc2626; font-size:0.8em; }
+
+.dark .ts-swap { border-top-color:rgba(255,255,255,0.12); }
+.dark .ts-swap-ends { color:#e5e7eb; }
+.dark .ts-swap-btn { background:rgba(14,116,144,0.25); color:#a5f3fc; border-color:#155e75; }
+
 .dark .ts-name-end { color:#f3f4f6; }
 .dark .ts-name-mid { color:#9ca3af; }
 .dark .ts-time-end { color:#e5e7eb; }
@@ -259,6 +280,83 @@ function RouteMeta({ route }) {
   );
 }
 
+
+// ── swap control ─────────────────────────────────────────────────────────────
+
+/**
+ * Exchange from and to.
+ *
+ * The one thing you do to a route search that is not searching again: you got
+ * here, now you want to get back. Doing it by hand means the edit form, two
+ * fields and a save; it belongs on the card, and this want is labelled
+ * user-control so Enter on the card reaches it.
+ *
+ * Read-modify-write against the want itself rather than PUTting the copy the
+ * card was rendered with: that copy is what a list response gave us, and a full
+ * PUT built from it would quietly drop anything the projection left out.
+ *
+ * data-inner-focus makes it the card's inner-focus stop, so Enter/Enter lands
+ * here and Space or Enter runs it — see the host's useInnerFocusRing.
+ */
+function SwapEnds({ want, from, to }) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const id = want.metadata?.id || want.id;
+
+  const swap = async (e) => {
+    e?.stopPropagation?.();
+    if (!id || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const cur = await fetch(`/api/v1/wants/${encodeURIComponent(id)}`).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+      const spec = cur.spec || {};
+      const params = { ...(spec.params || {}) };
+      const a = params.from ?? '';
+      const b = params.to ?? '';
+      if (!a && !b) throw new Error('from/to が空です');
+      params.from = b;
+      params.to = a;
+      const res = await fetch(`/api/v1/wants/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...cur, spec: { ...spec, params } }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : '入れ替えに失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="ts-swap" onMouseDown={e => e.stopPropagation()}>
+      <span className="ts-swap-ends">
+        <span className="ts-swap-end">{from || '?'}</span>
+        <span aria-hidden="true">→</span>
+        <span className="ts-swap-end">{to || '?'}</span>
+      </span>
+      <button
+        type="button"
+        data-inner-focus
+        data-inner-focus-default
+        className="ts-swap-btn"
+        disabled={busy}
+        onClick={swap}
+        title="出発地と目的地を入れ替えて再検索"
+      >
+        <span aria-hidden="true">⇄</span>
+        {busy ? '入れ替え中…' : '入れ替え'}
+      </button>
+      {err && <span className="ts-swap-err">{err}</span>}
+    </div>
+  );
+}
+
 // ── plugin ───────────────────────────────────────────────────────────────────
 
 function TransitSearchContentSection({ want, isExpanded }) {
@@ -297,7 +395,9 @@ function TransitSearchContentSection({ want, isExpanded }) {
     });
   }
 
-  // Expanded: every transfer pattern the search returned, stacked vertically.
+  // Expanded: every transfer pattern the search returned, stacked vertically,
+  // with the swap control pinned along the bottom — the routes are what you
+  // read, the swap is what you do, so it does not scroll away with them.
   return window.__mywant.createCardLayout({
     content: (
       <div className="ts-stack">
@@ -312,6 +412,13 @@ function TransitSearchContentSection({ want, isExpanded }) {
           </div>
         ))}
       </div>
+    ),
+    bottom: (
+      <SwapEnds
+        want={want}
+        from={cur.from || want.spec?.params?.from || ''}
+        to={cur.to || want.spec?.params?.to || ''}
+      />
     ),
   });
 }

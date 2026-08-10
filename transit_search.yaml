@@ -19,6 +19,9 @@ wantType:
       # `from` stays empty for the recommendations to offer.
       seed-param: to
       riffable: source
+      # A search you operate: the card carries a swap control, so Enter on the
+      # card is meant to reach it rather than only open the detail panel.
+      user-control: "true"
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
       category-bg-dark: "linear-gradient(160deg, #0e7490 0%, #083344 100%)"
