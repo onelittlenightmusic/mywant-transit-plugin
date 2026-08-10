@@ -22,6 +22,11 @@ wantType:
       # A search you operate: the card carries a swap control, so Enter on the
       # card is meant to reach it rather than only open the detail panel.
       user-control: "true"
+      # Type-scoped, not category-scoped: category-icon is claimed by whichever
+      # type in the category the API happens to list first, so when `route`
+      # joined `transport` this want started wearing a route glyph. A want type
+      # that cares about its own icon says so itself.
+      type-icon: TrainFront
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
       category-bg-dark: "linear-gradient(160deg, #0e7490 0%, #083344 100%)"
