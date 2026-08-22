@@ -62,6 +62,10 @@ wantType:
       required: false
       default: ""
       example: "到着"
+      validation:
+        enum:
+        - 到着
+        - 出発
 
   state:
     - name: skill_args_keys
