@@ -12,9 +12,13 @@ wantType:
     pattern: independent
     labels:
       # Drawn on the canvas as an arrow: from → to, a dot at each end.
+      # Plain, not dressed as track — the tile below already says "train", and
+      # saying it twice leaves the journey itself harder to see.
       form-type: arrow
-      # …drawn as track: this want is a train journey.
-      form-style: rail
+      # The tile is the platform's departure board: the found train's time and
+      # destination in LED amber, the next candidate under it, the line and the
+      # fare along the bottom. See forms/surfaces/departureBoard.tsx.
+      form-style: departure-board
       # A memo value is where the user wants to GO, so it fills `to`;
       # `from` stays empty for the recommendations to offer.
       seed-param: to
