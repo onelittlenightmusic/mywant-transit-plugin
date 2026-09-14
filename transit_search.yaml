@@ -139,7 +139,19 @@ wantType:
         duration_minutes, fare, transfers, text_summary, legs_text, itinerary.
       type: string
       label: current
-      persistent: true
+      # NOT persistent, deliberately — and for the mirror image of the reason
+      # `error` above is not. This field is what finalizeWhen.achieved reads, so
+      # a value that survives a restart is a want that is already achieved
+      # before it can run: the restart reset the eight non-persistent fields,
+      # left this one standing, and the want re-achieved in the same second
+      # without ever searching. The itinerary on the card was a day old and a
+      # restart could not shift it — the answer was frozen exactly as a
+      # persistent `error` freezes a failure.
+      #
+      # Every field that IS the answer — itinerary, routes, departure, arrival,
+      # raw_text and the rest — stays persistent, so the card keeps showing the
+      # last journey found until the new search lands. Only the gate resets.
+      persistent: false
       initialValue: ""
 
     - name: duration_minutes
