@@ -30,6 +30,10 @@ wantType:
       # type in the category the API happens to list first, so when `route`
       # joined `transport` this want started wearing a route glyph. A want type
       # that cares about its own icon says so itself.
+      # When the departure board is not drawn (a design whose tiles have no
+      # surface of their own), the tile still says the one thing a departure
+      # board is for: when the next train goes.
+      tile-readout: departure
       type-icon: TrainFront
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
