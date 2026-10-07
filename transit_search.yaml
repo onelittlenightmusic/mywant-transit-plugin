@@ -34,6 +34,23 @@ wantType:
       # surface of their own), the tile still says the one thing a departure
       # board is for: when the next train goes.
       tile-readout: departure
+      # What the board's robot (MyWant's fm) is told about a route question.
+      # On 2026-10-07 the phone's model, asked 「明日の朝9時40分までに戸塚に
+      # 移動できる乗り換え」, pointed at 戸塚 (not on the board), then read out
+      # the route want that was there — 南阿佐ヶ谷→国分寺, someone else's
+      # question — with neither the destination nor the time it was asked.
+      aliases: "乗り換え,乗換,行き方"
+      robot-hint: >-
+        A route: deploy_want transit_search at once — the stations need not be
+        on the board, so do not point or look first, and never answer from a
+        route want already there. Leave from out when no start is said (it is
+        then where the person is); a time asked goes in as time and arrive_type.
+      # Worked examples, one a label: robot-qa/<the request>: what the robot does.
+      "robot-qa/明日の朝9時40分までに戸塚に移動できる乗り換え": deploy_want transit_search with params to=戸塚, time=09:40, arrive_type=到着
+      "robot-qa/中野坂上から銀座の乗り換え": deploy_want transit_search with params from=中野坂上, to=銀座
+      "robot-qa/新宿を10時に出て横浜へ": deploy_want transit_search with params from=新宿, to=横浜, time=10:00, arrive_type=出発
+      # Left out, `from` is where the person is: the station nearest them.
+      here-param: from
       type-icon: TrainFront
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
