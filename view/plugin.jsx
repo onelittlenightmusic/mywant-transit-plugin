@@ -5,6 +5,8 @@
 //   every station in between — stations and times only.
 // Expanded:  every route candidate the search returned, stacked vertically with
 //   line names, fare and duration.
+// On the board: zoomed in close, the collapsed card is the tile's face too
+//   (tileFace) — the same rail the sidebar shows.
 //
 // window.React and window.__mywant are provided by the host app. Tailwind
 // classes are not available here (the host compiles them from its own sources),
@@ -427,4 +429,7 @@ window.__mywant.registerPlugin({
   types: ['transit_search'],
   ContentSection: TransitSearchContentSection,
   hideFinalResult: true,
+  // Up close, the board draws this card on the search's own tile (the collapsed
+  // rail: stations and times). Further out the tile keeps its departure board.
+  tileFace: true,
 });
