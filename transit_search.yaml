@@ -19,6 +19,10 @@ wantType:
       # destination in LED amber, the next candidate under it, the line and the
       # fare along the bottom. See forms/surfaces/departureBoard.tsx.
       form-style: departure-board
+      # The tile wears a tie in the colours of the lines it rides — one stripe
+      # per line, in the order they are taken. main.py writes the colours
+      # (label_updates → tile-effect-colors) each time it finds a route.
+      tile-effect: tie
       # A memo value is where the user wants to GO, so it fills `to`;
       # `from` stays empty for the recommendations to offer.
       seed-param: to

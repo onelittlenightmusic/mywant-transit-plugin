@@ -39,6 +39,7 @@ HTML を innerText 相当の行に落とせば足りる。ブラウザも外部�
   "raw_text": "..."
 }
 """
+import colorsys
 import datetime
 import html as html_module
 import json
@@ -379,6 +380,7 @@ def build_itinerary(legs: list[dict]) -> list[dict]:
                 "from":        dep["station"],
                 "depart_time": dep["time"],
                 "line":        dep.get("line", ""),
+                "color":       line_color(dep.get("line", "")),
                 "direction":   dep.get("direction", ""),
                 "to":          arr["station"],
                 "arrive_time": arr["time"],
@@ -387,6 +389,79 @@ def build_itinerary(legs: list[dict]) -> list[dict]:
         else:
             i += 1
     return segments
+
+
+# ── 路線の色 ─────────────────────────────────────────────────────────────────
+# 実際の路線色。カードの路線図（view/plugin.jsx）も、タイルのネクタイ
+# （tile-effect-colors）もこの色を使う。分からない路線は名前からハッシュした
+# 色相にして、二つの路線が同じ色に潰れないようにする。
+
+LINE_COLORS = [
+    (r"山手", "#9ACD32"),
+    (r"京浜東北", "#00B2E5"),
+    # 総武が先：中央・総武線は黄色、ほかの中央（快速・特快・青梅直通）は橙。
+    (r"中央.*緩行|総武", "#FFD400"),
+    (r"中央", "#F15A22"),
+    (r"埼京", "#00B48D"),
+    (r"湘南新宿", "#E21F26"),
+    (r"横須賀", "#0067C0"),
+    (r"新幹線", "#2B5FA0"),
+    (r"丸ノ内", "#F62E36"),
+    (r"銀座", "#FF9500"),
+    (r"日比谷", "#B5B5AC"),
+    (r"東西", "#009BBF"),
+    (r"千代田", "#00BB85"),
+    (r"有楽町", "#C1A470"),
+    (r"半蔵門", "#8F76D6"),
+    (r"南北", "#00AC9B"),
+    (r"副都心", "#9C5E31"),
+    (r"浅草", "#E85298"),
+    (r"三田", "#006AB8"),
+    (r"新宿線", "#6CBB5A"),
+    (r"大江戸", "#B6007A"),
+    (r"京王", "#DD0077"),
+    (r"小田急", "#0071BC"),
+    (r"東急", "#DA0442"),
+    (r"西武", "#0080C7"),
+    (r"東武", "#0F6CC1"),
+    (r"京急", "#00A7DB"),
+    (r"京成", "#0855A0"),
+    (r"りんかい", "#00609A"),
+    (r"ゆりかもめ", "#0071BC"),
+    (r"モノレール", "#0B318F"),
+]
+WALK_COLOR = "#9CA3AF"
+
+
+def is_walk(line: str) -> bool:
+    return not line or "徒歩" in line
+
+
+def line_color(line: str) -> str:
+    if is_walk(line):
+        return WALK_COLOR
+    for pattern, color in LINE_COLORS:
+        if re.search(pattern, line):
+            return color
+    h = 0
+    for ch in line:
+        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    if h >= 0x80000000:
+        h -= 0x100000000
+    r, g, b = colorsys.hls_to_rgb((abs(h) % 360) / 360, 0.48, 0.62)
+    return "#{:02X}{:02X}{:02X}".format(round(r * 255), round(g * 255), round(b * 255))
+
+
+def route_line_colors(route: dict) -> list[str]:
+    """乗る路線の色を乗る順に、重複なしで。徒歩は数えない。"""
+    out: list[str] = []
+    for seg in route.get("itinerary", []):
+        if is_walk(seg.get("line", "")):
+            continue
+        c = seg.get("color") or line_color(seg["line"])
+        if c not in out:
+            out.append(c)
+    return out
 
 
 # ── ルートサマリーJSON ────────────────────────────────────────────────────────
@@ -470,6 +545,10 @@ def main() -> None:
 
     if not data["routes"]:
         error_out(f"{from_st} → {to_st} のルートが見つかりませんでした")
+
+    # 一番目のルートが乗る路線の色を、タイルのネクタイの色にする
+    # （エンジンの label_updates。tile- のラベルだけ書ける）。
+    data["label_updates"] = {"tile-effect-colors": route_line_colors(data["routes"][0])}
 
     report_progress(90, f"Found {len(data['routes'])} routes")
     report_progress(100, "Done")

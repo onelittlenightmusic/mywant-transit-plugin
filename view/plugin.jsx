@@ -54,6 +54,9 @@ const LINE_COLORS = [
 
 const isWalk = (line) => !line || /徒歩/.test(line);
 
+/** A segment's colour: the one main.py gave it, or worked out here for answers recorded before it did. */
+const segColor = (seg) => seg.color || lineColor(seg.line);
+
 function lineColor(line) {
   if (isWalk(line)) return '#9CA3AF';
   for (const [re, color] of LINE_COLORS) {
@@ -179,7 +182,7 @@ function RouteRail({ itinerary, detailed }) {
   const isEnd = (i) => i === 0 || i === nodes.length - 1;
 
   const dot = (_node, i) => {
-    const color = lineColor(itinerary[Math.min(i, itinerary.length - 1)].line);
+    const color = segColor(itinerary[Math.min(i, itinerary.length - 1)]);
     const size = isEnd(i) ? '0.7em' : '0.4em';
     return (
       <span
@@ -199,7 +202,7 @@ function RouteRail({ itinerary, detailed }) {
 
   const bar = (i) => {
     const line = itinerary[i].line;
-    const color = lineColor(line);
+    const color = segColor(itinerary[i]);
     return (
       <span
         key={`bar-${i}`}
@@ -244,7 +247,7 @@ function RouteRail({ itinerary, detailed }) {
       <span
         key={`line-${i}`}
         className="ts-line"
-        style={{ color: lineColor(line) }}
+        style={{ color: segColor(itinerary[i]) }}
         title={direction ? `${line} ${direction}` : line}
       >
         {line || '徒歩'}
