@@ -55,6 +55,12 @@ wantType:
       "robot-qa/新宿を10時に出て横浜へ": deploy_want transit_search with params from=新宿, to=横浜, time=10:00, arrive_type=出発
       # Left out, `from` is where the person is: the station nearest them.
       here-param: from
+      # The words that say which end a station is: 「銀座から」 is from,
+      # 「中野坂上まで」 is to. MyWant's fm sets the ends by them from what the
+      # person said, whatever the model sent — on 2026-10-22 the phone's model
+      # deployed 「銀座から中野坂上」 as from=中野坂上, to=銀座.
+      "param-marker/from": "から,発"
+      "param-marker/to": "まで,へ,行き,に行,に移動"
       type-icon: TrainFront
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
