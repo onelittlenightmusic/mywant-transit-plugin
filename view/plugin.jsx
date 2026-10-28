@@ -286,57 +286,98 @@ function RouteMeta({ route }) {
 }
 
 
-// ── swap control ─────────────────────────────────────────────────────────────
+// ── controls ─────────────────────────────────────────────────────────────────
 
 /**
- * Exchange from and to.
- *
- * The one thing you do to a route search that is not searching again: you got
- * here, now you want to get back. Doing it by hand means the edit form, two
- * fields and a save; it belongs on the card, and this want is labelled
- * user-control so Enter on the card reaches it.
+ * Change the search's params and let it run again.
  *
  * Read-modify-write against the want itself rather than PUTting the copy the
  * card was rendered with: that copy is what a list response gave us, and a full
  * PUT built from it would quietly drop anything the projection left out.
- *
- * data-inner-focus makes it the card's inner-focus stop, so Enter/Enter lands
- * here and Space or Enter runs it — see the host's useInnerFocusRing.
  */
-function SwapEnds({ want, from, to }) {
-  const [busy, setBusy] = React.useState(false);
+async function updateParams(id, change) {
+  const url = `/api/v1/wants/${encodeURIComponent(id)}`;
+  const cur = await fetch(url).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
+  const spec = cur.spec || {};
+  const params = change({ ...(spec.params || {}) });
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...cur, spec: { ...spec, params } }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+/** HH:MM one minute on, wrapping past midnight. '' if it is not a time. */
+function minuteAfter(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+  if (!m) return '';
+  const t = (Number(m[1]) * 60 + Number(m[2]) + 1) % (24 * 60);
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Where 次へ searches from: just past the found route, at the same end it was
+ * asked at — a search for "arrive by" steps past the arrival, anything else
+ * past the departure, the way a timetable's 1本後 does.
+ */
+function nextQuery(route, arriveType) {
+  if (!route) return null;
+  if (arriveType === '到着') {
+    const time = minuteAfter(route.arrival);
+    return time ? { time, arrive_type: '到着' } : null;
+  }
+  const time = minuteAfter(route.departure);
+  return time ? { time, arrive_type: '出発' } : null;
+}
+
+/**
+ * The bar along the bottom of the expanded card: the things you DO to a route
+ * search.
+ *
+ * 入れ替え exchanges from and to — you got here, now you want to get back.
+ * 次へ searches again from just after the train found, for when that one has
+ * gone or you would rather take the one after it.
+ *
+ * Doing either by hand means the edit form and a save; they belong on the card,
+ * and this want is labelled user-control so Enter on the card reaches them.
+ * data-inner-focus makes each an inner-focus stop, so Enter/Enter lands on
+ * 次へ and Space or Enter runs it — see the host's useInnerFocusRing.
+ */
+function SearchControls({ want, from, to, route }) {
+  const [busy, setBusy] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const id = want.metadata?.id || want.id;
+  const next = nextQuery(route, want.spec?.params?.arrive_type ?? want.state?.current?.arrive_type);
 
-  const swap = async (e) => {
+  const run = (kind, change, failMsg) => async (e) => {
     e?.stopPropagation?.();
     if (!id || busy) return;
-    setBusy(true);
+    setBusy(kind);
     setErr(null);
     try {
-      const cur = await fetch(`/api/v1/wants/${encodeURIComponent(id)}`).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
-      const spec = cur.spec || {};
-      const params = { ...(spec.params || {}) };
-      const a = params.from ?? '';
-      const b = params.to ?? '';
-      if (!a && !b) throw new Error('from/to が空です');
-      params.from = b;
-      params.to = a;
-      const res = await fetch(`/api/v1/wants/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...cur, spec: { ...spec, params } }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await updateParams(id, change);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : '入れ替えに失敗しました');
+      setErr(e2 instanceof Error ? e2.message : failMsg);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
+
+  const swap = run('swap', (params) => {
+    const a = params.from ?? '';
+    const b = params.to ?? '';
+    if (!a && !b) throw new Error('from/to が空です');
+    return { ...params, from: b, to: a };
+  }, '入れ替えに失敗しました');
+
+  const later = run('next', (params) => {
+    if (!next) throw new Error('検索結果の時刻がありません');
+    return { ...params, ...next };
+  }, '次の検索に失敗しました');
 
   return (
     <div className="ts-swap" onMouseDown={e => e.stopPropagation()}>
@@ -348,14 +389,27 @@ function SwapEnds({ want, from, to }) {
       <button
         type="button"
         data-inner-focus
-        data-inner-focus-default
         className="ts-swap-btn"
-        disabled={busy}
+        disabled={!!busy}
         onClick={swap}
         title="出発地と目的地を入れ替えて再検索"
       >
         <span aria-hidden="true">⇄</span>
-        {busy ? '入れ替え中…' : '入れ替え'}
+        {busy === 'swap' ? '入れ替え中…' : '入れ替え'}
+      </button>
+      <button
+        type="button"
+        data-inner-focus
+        data-inner-focus-default
+        className="ts-swap-btn"
+        disabled={!!busy || !next}
+        onClick={later}
+        title={next
+          ? `${next.time} ${next.arrive_type}で再検索`
+          : '検索結果が出てから使えます'}
+      >
+        {busy === 'next' ? '検索中…' : '次へ'}
+        <span aria-hidden="true">→</span>
       </button>
       {err && <span className="ts-swap-err">{err}</span>}
     </div>
@@ -401,8 +455,8 @@ function TransitSearchContentSection({ want, isExpanded }) {
   }
 
   // Expanded: every transfer pattern the search returned, stacked vertically,
-  // with the swap control pinned along the bottom — the routes are what you
-  // read, the swap is what you do, so it does not scroll away with them.
+  // with the controls pinned along the bottom — the routes are what you
+  // read, swap and 次へ are what you do, so it does not scroll away with them.
   return window.__mywant.createCardLayout({
     content: (
       <div className="ts-stack">
@@ -419,8 +473,9 @@ function TransitSearchContentSection({ want, isExpanded }) {
       </div>
     ),
     bottom: (
-      <SwapEnds
+      <SearchControls
         want={want}
+        route={routes[0]}
         from={cur.from || want.spec?.params?.from || ''}
         to={cur.to || want.spec?.params?.to || ''}
       />
