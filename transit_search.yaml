@@ -55,6 +55,10 @@ wantType:
       "robot-qa/新宿を10時に出て横浜へ": deploy_want transit_search with params from=新宿, to=横浜, time=10:00, arrive_type=出発
       # Left out, `from` is where the person is: the station nearest them.
       here-param: from
+      # A route is a question: asked again after it was archived, the one in
+      # the archive is brought back with what was asked now and searched again,
+      # not offered back to be restored first.
+      ask-again: run
       # The words that say which end a station is: 「銀座から」 is from,
       # 「中野坂上まで」 is to. MyWant's fm sets the ends by them from what the
       # person said, whatever the model sent — on 2026-10-22 the phone's model
