@@ -59,6 +59,9 @@ wantType:
       # the archive is brought back with what was asked now and searched again,
       # not offered back to be restored first.
       ask-again: run
+      # What the robot names a route it makes: where it is from and to — not
+      # the destination alone, which is the station's own name too.
+      robot-name: "{from}→{to}"
       # The words that say which end a station is: 「銀座から」 is from,
       # 「中野坂上まで」 is to. MyWant's fm sets the ends by them from what the
       # person said, whatever the model sent — on 2026-10-22 the phone's model
