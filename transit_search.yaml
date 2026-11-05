@@ -47,12 +47,19 @@ wantType:
       robot-hint: >-
         A route: deploy_want transit_search at once — the stations need not be
         on the board, so do not point or look first, and never answer from a
-        route want already there. Leave from out when no start is said (it is
+        route want already there — unless asked to search again (再検索): then
+        the route already there is run again (capability restart), with only
+        what was asked changed. Leave from out when no start is said (it is
         then where the person is); a time asked goes in as time and arrive_type.
       # Worked examples, one a label: robot-qa/<the request>: what the robot does.
       "robot-qa/明日の朝9時40分までに戸塚に移動できる乗り換え": deploy_want transit_search with params to=戸塚, time=09:40, arrive_type=到着
       "robot-qa/中野坂上から銀座の乗り換え": deploy_want transit_search with params from=中野坂上, to=銀座
       "robot-qa/新宿を10時に出て横浜へ": deploy_want transit_search with params from=新宿, to=横浜, time=10:00, arrive_type=出発
+      # Searched again: the route already there, run again (the capability
+      # restart, every want's) — not a new one. Only what the question changes
+      # is set before it runs; as it is, when nothing is said.
+      "robot-qa/乗り換えを再検索": run the route already there again (capability restart), as it is
+      "robot-qa/今の時刻で再検索": run the route already there again (capability restart) with params time=今の時刻
       # Left out, `from` is where the person is: the station nearest them.
       here-param: from
       # A route is a question: asked again after it was archived, the one in
