@@ -166,6 +166,10 @@ BLOCK_END_TAGS = r"</(?:div|p|li|tr|h[1-6]|dt|dd|table|ul|ol|section|article|for
 def html_to_lines(html: str) -> list[str]:
     """結果ページの HTML を innerText 相当の行リストに変換する。"""
     html = re.sub(r"(?is)<(script|style|noscript).*?</\1>", " ", html)
+    # 遅れている列車は定刻と見込みが並ぶ（<span class="original">10:45</span>
+    # <span class="delay">10:46</span>）。続けて "10:4510:46" と読むと時刻にならず、
+    # そのルートの区間がすべて落ちる。ルート見出し（10:45発→11:19着）と同じ定刻を残す。
+    html = re.sub(r'(?is)<span class="delay">.*?</span>', "", html)
     html = re.sub(r"(?i)<br\s*/?>", "\n", html)
     html = re.sub(r"(?i)</(td|th)>", "\t", html)
     # 路線名と方面は同じ行に並ぶので、方面だけタブで切り出せるようにしておく

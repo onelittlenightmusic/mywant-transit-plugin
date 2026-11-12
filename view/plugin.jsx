@@ -274,6 +274,12 @@ function RouteRail({ itinerary, detailed }) {
   );
 }
 
+/** A route whose legs could not be read: say so rather than draw nothing. */
+function RouteRailOr({ itinerary, detailed }) {
+  if (itinerary && itinerary.length) return <RouteRail itinerary={itinerary} detailed={detailed} />;
+  return <div className="ts-empty" style={{ fontSize: '0.8em' }}>区間を読めませんでした — 再検索してください</div>;
+}
+
 function RouteMeta({ route }) {
   return (
     <div className="ts-meta">
@@ -448,7 +454,7 @@ function TransitSearchContentSection({ want, isExpanded }) {
       content: (
         <div style={{ width: '100%', padding: '0 12px' }}>
           {style}
-          <RouteRail itinerary={routes[0].itinerary} />
+          <RouteRailOr itinerary={routes[0].itinerary} />
         </div>
       ),
     });
@@ -467,7 +473,7 @@ function TransitSearchContentSection({ want, isExpanded }) {
               <span className="ts-badge">ルート{route.index ?? i + 1}</span>
               <RouteMeta route={route} />
             </div>
-            <RouteRail itinerary={route.itinerary} detailed />
+            <RouteRailOr itinerary={route.itinerary} detailed />
           </div>
         ))}
       </div>
