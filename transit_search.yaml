@@ -44,6 +44,9 @@ wantType:
       # the route want that was there — 南阿佐ヶ谷→国分寺, someone else's
       # question — with neither the destination nor the time it was asked.
       aliases: "乗り換え,乗換,行き方"
+      # Said to the robot as it is, it makes the route with no model asked
+      # (mywant's magic sentences): 「荻窪から中野坂上」, 「荻窪から中野坂上まで」.
+      magic-sentence: "<from:station>から<to:station>|<from:station>から<to:station>まで"
       robot-hint: >-
         A route: deploy_want transit_search at once — the stations need not be
         on the board, so do not point or look first, and never answer from a
