@@ -88,6 +88,17 @@ wantType:
 
   finalResultField: itinerary
 
+  # When it tells of its answer, besides every new route (the standard
+  # timing "answer"). leave_soon: ten minutes before the train found leaves —
+  # main.py asks to be woken then (_wake_at), searches again and says it with
+  # what it finds now (a delay or another train shows in the answer); what it
+  # was woken for is kept in its memo.
+  timings:
+    - name: leave_soon
+      description: 出発の10分前（検索し直して、遅れや変更も確かめてから）
+      murmur: true
+      notify: true
+
   parameters:
     - name: from
       description: Departure station or location

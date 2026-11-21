@@ -43,6 +43,7 @@ import colorsys
 import datetime
 import html as html_module
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -541,6 +542,73 @@ def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) ->
     }
 
 
+# 出発の何分前に「まもなく出発」(timing leave_soon) を言うか。その時刻に
+# 起こしてもらい（_wake_at）、検索し直して、遅れや変更があればそれも見える
+# 答えと一緒に言う。
+LEAVE_LEAD = datetime.timedelta(minutes=10)
+# 起こされる時刻と実際に走る時刻のずれ（スケジューラ、ページの取得）。
+LEAVE_SLACK = datetime.timedelta(minutes=2)
+JST = datetime.timezone(datetime.timedelta(hours=9))
+
+
+def memo() -> dict:
+    """前回の自分が残したメモ（_memo）。SDK の current() から（共有の
+    プラグインサービスでも単独の起動でも）。SDK が無ければ環境変数から。"""
+    try:
+        from mywant import current
+        return dict(current().memo or {})
+    except Exception:
+        try:
+            return json.loads(os.environ.get("MYWANT_WANT_MEMO") or "{}") or {}
+        except ValueError:
+            return {}
+
+
+def departure_at(hhmm: str, now: datetime.datetime) -> datetime.datetime | None:
+    """答えの出発時刻（今日の HH:MM）を日時にする。今より1時間以上前なら
+    日付をまたいだ翌日の便とみなす（23:50 に探した 00:10 発）。"""
+    m = re.match(r"^(\d{1,2}):(\d{2})$", hhmm or "")
+    if not m:
+        return None
+    at = now.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+    if at < now - datetime.timedelta(hours=1):
+        at += datetime.timedelta(days=1)
+    return at
+
+
+def leave_soon(departure: str, now: datetime.datetime, state: dict) -> tuple[list[dict], dict]:
+    """「まもなく出発」を言うか、いつ見直しに来るか。
+
+    返り値は (出す指示の行, メモに残すもの)。出発の LEAVE_LEAD 前より前なら
+    その時刻に起こしてもらい、起こした出発を leave_wake_for に覚える。起きて
+    （leave_wake_for の時刻が来て）検索し直したときだけ言う。最初の検索で
+    もう間近なら言わない — 確かめに来たのではないので。出発が変わっていたら
+    （遅れ・別の便）、前の時刻を leave_was に残す。
+    """
+    told = state.get("leave_told") or ""
+    wake_for = state.get("leave_wake_for") or ""
+    at = departure_at(departure, now)
+    out = {"leave_told": told, "leave_wake_for": "", "leave_was": ""}
+    if at is None or at <= now:
+        return [], out
+    woke = False
+    if wake_for:
+        try:
+            woke = now >= datetime.datetime.fromisoformat(wake_for) - LEAVE_LEAD - LEAVE_SLACK
+        except ValueError:
+            woke = False
+    key = at.isoformat(timespec="minutes")
+    if woke and told != key:
+        out["leave_told"] = key
+        if wake_for != key:
+            out["leave_was"] = datetime.datetime.fromisoformat(wake_for).strftime("%H:%M")
+        return [{"_timing": "leave_soon"}], out
+    if at - now > LEAVE_LEAD + LEAVE_SLACK:
+        out["leave_wake_for"] = key
+        return [{"_wake_at": (at - LEAVE_LEAD).isoformat(timespec="seconds")}], out
+    return [], out
+
+
 def main() -> None:
     from_st, to_st, time_str, dep_arr = parse_args(sys.argv[1:])
 
@@ -553,6 +621,11 @@ def main() -> None:
     # 一番目のルートが乗る路線の色を、タイルのネクタイの色にする
     # （エンジンの label_updates。tile- のラベルだけ書ける）。
     data["label_updates"] = {"tile-effect-colors": route_line_colors(data["routes"][0])}
+
+    directives, leave = leave_soon(data["routes"][0].get("departure", ""),
+                                   datetime.datetime.now(JST), memo())
+    for d in directives + [{"_memo": leave}]:
+        print(json.dumps(d, ensure_ascii=False), flush=True)
 
     report_progress(90, f"Found {len(data['routes'])} routes")
     report_progress(100, "Done")
