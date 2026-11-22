@@ -88,6 +88,14 @@ wantType:
 
   finalResultField: itinerary
 
+  # A route is fixed when it is asked for (its departure is the time asked, or
+  # now): every 再検索, and the search ten minutes before leaving, is a new
+  # request, and the route it had answers the one before — kept and shown, but
+  # not achieved until this one is answered. Starting the server again is not
+  # a request: the route stays, achieved, and nothing is searched (mywant
+  # engine want_request.go).
+  requestAsNew: true
+
   # When it tells of its answer, besides every new route (the standard
   # timing "answer"). leave_soon: ten minutes before the train found leaves —
   # main.py asks to be woken then (_wake_at), searches again and says it with
@@ -177,12 +185,9 @@ wantType:
       description: Error message if execution failed
       type: string
       label: current
-      # NOT persistent, deliberately: this field is what finalizeWhen.failed
-      # reads, so a value that survives a restart is a failure the want can
-      # never be restarted out of — the monitor is cancelled in the same second
-      # it boots, before it can try again. The skill's OUTPUT stays persistent;
-      # the reason the last attempt failed is not an answer worth keeping.
-      persistent: false
+      # Kept: a failure is the failed request's (requestAsNew), so an error
+      # from the request before does not fail a new one.
+      persistent: true
       initialValue: ""
 
     # ── スキルJSON全体 ────────────────────────────────────────────
@@ -201,19 +206,10 @@ wantType:
         duration_minutes, fare, transfers, text_summary, legs_text, itinerary.
       type: string
       label: current
-      # NOT persistent, deliberately — and for the mirror image of the reason
-      # `error` above is not. This field is what finalizeWhen.achieved reads, so
-      # a value that survives a restart is a want that is already achieved
-      # before it can run: the restart reset the eight non-persistent fields,
-      # left this one standing, and the want re-achieved in the same second
-      # without ever searching. The itinerary on the card was a day old and a
-      # restart could not shift it — the answer was frozen exactly as a
-      # persistent `error` freezes a failure.
-      #
-      # Every field that IS the answer — itinerary, routes, departure, arrival,
-      # raw_text and the rest — stays persistent, so the card keeps showing the
-      # last journey found until the new search lands. Only the gate resets.
-      persistent: false
+      # Kept, as every field of the answer is: the route found stays through a
+      # server start. Whether it answers what was asked is the engine's
+      # (requestAsNew): a 再検索 is a new request it is not the answer to.
+      persistent: true
       initialValue: ""
 
     - name: duration_minutes
