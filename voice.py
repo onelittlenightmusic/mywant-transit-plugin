@@ -22,6 +22,7 @@ def first_leg(answer):
         "depart": legs[0].get("depart_time", ""),
         "line": legs[0].get("line", ""),
         "arrive": legs[-1].get("arrive_time", ""),
+        "transfers": len(legs) - 1,
     }
 
 
@@ -47,7 +48,10 @@ def speak(inp):
             return [f"{usual}、{when}です", f"{usual}は{leg['line']}で{when}"]
         if place and home.get("param") == "to":
             return [f"{dest}へ{when}。{part}は{place}じゃないんですね"]
-        return None
+        # Any other route: when it leaves and arrives, and how — never just a
+        # count of legs (the notice's plain words, "3件").
+        how = leg["line"] + ("" if leg["transfers"] == 0 else f"ほか、乗り換え{leg['transfers']}回")
+        return [f"{when}（{how}）" if leg["line"] else when]
 
     # Standing on the tile.
     if usual and leg:
