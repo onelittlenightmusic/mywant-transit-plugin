@@ -104,6 +104,7 @@ wantType:
   timings:
     - name: leave_soon
       description: 出発の10分前（検索し直して、遅れや変更も確かめてから）
+      icon: train-front
       murmur: true
       notify: true
 
