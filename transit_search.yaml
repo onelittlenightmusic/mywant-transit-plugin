@@ -68,6 +68,12 @@ wantType:
       "robot-qa/今の時刻で再検索": run the route already there again (capability restart) with params time=今の時刻
       # Left out, `from` is where the person is: the station nearest them.
       here-param: from
+      # How the request's time is read — 「10分後」, 「明日の9時40分まで」:
+      # Laya chooses the reading (今から N 分後, 明日の H 時 …) and whether it is
+      # a time to leave or to arrive; MyWant works it out on the time now and
+      # sets time and arrive_type. Not left to the model, which on 2026-11-24
+      # searched 「10分後に国分寺駅から中野坂上」 for now.
+      time-reading/time: "arrive_type=出発|到着"
       # A route is a question: asked again after it was archived, the one in
       # the archive is brought back with what was asked now and searched again,
       # not offered back to be restored first.
@@ -308,6 +314,58 @@ wantType:
 
   requires:
     - transit_search
+
+  # How a route is asked for, in words, and what it is made with (want-spec
+  # asks): what reads requests (the robot, Laya) learns from these and is
+  # tested on them — POST /api/v1/laya/train-readings, /laya/test-asks. `at`
+  # is when it was said, for a time that turns on it (10分後 at 19:33 is
+  # 19:43). A parameter left out is one the request does not say.
+  asks:
+    - say: 国分寺から中野坂上
+      params: {from: 国分寺, to: 中野坂上}
+    - say: 荻窪から銀座まで
+      params: {from: 荻窪, to: 銀座}
+    - say: 新宿から横浜の乗り換え
+      params: {from: 新宿, to: 横浜}
+    - say: 10分後に国分寺から中野坂上
+      at: "19:33"
+      params: {from: 国分寺, to: 中野坂上, time: "19:43", arrive_type: 出発}
+    - say: 30分後に荻窪を出て銀座へ
+      at: "08:10"
+      params: {from: 荻窪, to: 銀座, time: "08:40", arrive_type: 出発}
+    - say: 2時間後に新宿から横浜
+      at: "13:00"
+      params: {from: 新宿, to: 横浜, time: "15:00", arrive_type: 出発}
+    - say: 1時間半後に渋谷から品川に行きたい
+      at: "10:00"
+      params: {from: 渋谷, to: 品川, time: "11:30", arrive_type: 出発}
+    - say: 21時に新宿から横浜
+      at: "18:00"
+      params: {from: 新宿, to: 横浜, time: "21:00", arrive_type: 出発}
+    - say: 20:15発で国分寺から中野坂上
+      at: "19:00"
+      params: {from: 国分寺, to: 中野坂上, time: "20:15", arrive_type: 出発}
+    - say: 午後3時半に池袋から上野
+      at: "12:00"
+      params: {from: 池袋, to: 上野, time: "15:30", arrive_type: 出発}
+    - say: 50分に中野坂上から新宿
+      at: "19:33"
+      params: {from: 中野坂上, to: 新宿, time: "19:50", arrive_type: 出発}
+    - say: 明日の8時に吉祥寺から東京
+      at: "21:00"
+      params: {from: 吉祥寺, to: 東京, time: "08:00", arrive_type: 出発}
+    - say: 9時40分までに中野から戸塚
+      at: "07:00"
+      params: {from: 中野, to: 戸塚, time: "09:40", arrive_type: 到着}
+    - say: 中野坂上から荻窪、18時までに着きたい
+      at: "17:00"
+      params: {from: 中野坂上, to: 荻窪, time: "18:00", arrive_type: 到着}
+    - say: 12時着で品川から横浜
+      at: "10:00"
+      params: {from: 品川, to: 横浜, time: "12:00", arrive_type: 到着}
+    - say: 明日の朝9時40分までに戸塚に移動できる乗り換え
+      at: "22:00"
+      params: {to: 戸塚, time: "09:40", arrive_type: 到着}
 
   examples:
     - name: Simple Route Search
