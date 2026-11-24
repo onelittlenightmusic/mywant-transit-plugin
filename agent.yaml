@@ -42,6 +42,30 @@ agent:
       label: current
       persistent: true
       onFetchData: "routes[0].arrival"
+    # The first route's delay, as the page shows it (main.py route_delays):
+    # the most it is late by, when it is now expected in, and the line's
+    # service status. late: a route asked to arrive by a time that it will no
+    # longer make.
+    - name: delay_minutes
+      type: int
+      label: current
+      persistent: true
+      onFetchData: "routes[0].delay_minutes"
+    - name: arrival_expected
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].arrival_expected"
+    - name: service_status
+      type: string
+      label: current
+      persistent: true
+      onFetchData: "routes[0].service_status"
+    - name: late
+      type: bool
+      label: current
+      persistent: true
+      onFetchData: "late"
     - name: legs_text
       type: string
       label: current

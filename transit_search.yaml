@@ -11,6 +11,9 @@ wantType:
     category: transport
     pattern: independent
     labels:
+      # What the robot reads a request against, when it asks Laya which want
+      # it is: the type in a few words of its own (laya-option).
+      laya-option: "電車の乗り換え経路と時刻を調べる"
       # Drawn on the canvas as an arrow: from → to, a dot at each end.
       # Plain, not dressed as track — the tile below already says "train", and
       # saying it twice leaves the journey itself harder to see.
@@ -113,6 +116,33 @@ wantType:
       icon: train-front
       murmur: true
       notify: true
+    # Out of the ordinary (irregular): the robot looks at these and proposes
+    # what to do — leave earlier, another line, move what it was for.
+    - name: delayed
+      description: 乗る電車に遅れが出たとき（遅れが増えたとき）
+      icon: hourglass
+      onIncrease: delay_minutes
+      irregular: true
+      requires: [reschedule]   # what it needs done (met by a capability that attends to it)
+      murmur: true
+      notify: false
+    - name: late
+      description: 指定の到着時刻に間に合わなくなったとき
+      icon: alarm-clock-off
+      if: late
+      onChange: late
+      irregular: true
+      requires: [reschedule, notify]   # what it needs done (met by a capability that attends to it)
+      murmur: true
+      notify: true
+
+  # What a route can be asked for when something is out of the ordinary
+  # (attends: what an irregular moment nobody hears requires — the robot proposes it):
+  # searched again for the train late, or for what it was for having moved.
+  capabilities:
+    - name: reroute
+      description: 遅れや予定の変更に合わせて検索し直す（早める・到着時刻を変える）
+      attends: [reschedule]
 
   parameters:
     - name: from
@@ -256,6 +286,35 @@ wantType:
       persistent: true
       initialValue: ""
 
+    - name: delay_minutes
+      description: How late the first route's train is, in minutes (0 on time)
+      type: int
+      label: current
+      persistent: true
+      initialValue: 0
+
+    - name: arrival_expected
+      description: When the first route is now expected to arrive, with its delay (HH:MM; empty when on time)
+      type: string
+      subType: time
+      label: current
+      persistent: true
+      initialValue: ""
+
+    - name: service_status
+      description: The first route's line service status (列車遅延, 運転見合わせ …; empty when normal)
+      type: string
+      label: current
+      persistent: true
+      initialValue: ""
+
+    - name: late
+      description: Asked to arrive by a time, the first route will no longer make it
+      type: bool
+      label: current
+      persistent: true
+      initialValue: false
+
     - name: legs_text
       description: Human-readable route legs for the first route
       type: string
@@ -322,48 +381,64 @@ wantType:
   # 19:43). A parameter left out is one the request does not say.
   asks:
     - say: 国分寺から中野坂上
+      variants: ["国分寺から中野坂上まで電車で", "国分寺から中野坂上への乗り換え", "国分寺から中野坂上に行く電車を調べて", "国分寺→中野坂上の行き方"]
       params: {from: 国分寺, to: 中野坂上}
     - say: 荻窪から銀座まで
+      variants: ["荻窪から銀座までの乗り換え", "荻窪から銀座へ電車で行きたい", "荻窪駅から銀座駅まで"]
       params: {from: 荻窪, to: 銀座}
     - say: 新宿から横浜の乗り換え
+      variants: ["新宿から横浜まで何線で行く？", "新宿から横浜への電車", "新宿から横浜の行き方を調べて"]
       params: {from: 新宿, to: 横浜}
     - say: 10分後に国分寺から中野坂上
+      variants: ["国分寺から中野坂上まで、10分後に出る電車", "10分したら国分寺を出て中野坂上へ", "10分後の国分寺発、中野坂上行きの乗り換え"]
       at: "19:33"
       params: {from: 国分寺, to: 中野坂上, time: "19:43", arrive_type: 出発}
     - say: 30分後に荻窪を出て銀座へ
+      variants: ["荻窪から銀座、30分後に出発", "30分後に荻窪から銀座まで電車で", "30分後に出る荻窪→銀座の乗り換え"]
       at: "08:10"
       params: {from: 荻窪, to: 銀座, time: "08:40", arrive_type: 出発}
     - say: 2時間後に新宿から横浜
+      variants: ["新宿から横浜まで、2時間後に出る電車", "2時間後の新宿発横浜行きの乗り換え", "2時間したら新宿から横浜へ行く"]
       at: "13:00"
       params: {from: 新宿, to: 横浜, time: "15:00", arrive_type: 出発}
     - say: 1時間半後に渋谷から品川に行きたい
+      variants: ["渋谷から品川、1時間半後に出発する電車", "1時間半後に渋谷を出て品川まで", "1時間半後の渋谷→品川の乗り換え"]
       at: "10:00"
       params: {from: 渋谷, to: 品川, time: "11:30", arrive_type: 出発}
     - say: 21時に新宿から横浜
+      variants: ["新宿から横浜、21時に出る電車", "21時発で新宿から横浜まで", "21時に新宿を出て横浜へ行く乗り換え"]
       at: "18:00"
       params: {from: 新宿, to: 横浜, time: "21:00", arrive_type: 出発}
     - say: 20:15発で国分寺から中野坂上
+      variants: ["国分寺を20:15に出て中野坂上まで", "国分寺から中野坂上、20:15出発の電車", "20:15に国分寺発の中野坂上行き"]
       at: "19:00"
       params: {from: 国分寺, to: 中野坂上, time: "20:15", arrive_type: 出発}
     - say: 午後3時半に池袋から上野
+      variants: ["池袋から上野、午後3時半に出る電車", "午後3時半に池袋を出て上野まで", "午後3時半発の池袋→上野の乗り換え"]
       at: "12:00"
       params: {from: 池袋, to: 上野, time: "15:30", arrive_type: 出発}
     - say: 50分に中野坂上から新宿
+      variants: ["中野坂上から新宿、50分に出る電車", "50分発で中野坂上から新宿まで", "50分に中野坂上を出て新宿へ"]
       at: "19:33"
       params: {from: 中野坂上, to: 新宿, time: "19:50", arrive_type: 出発}
     - say: 明日の8時に吉祥寺から東京
+      variants: ["吉祥寺から東京、明日の8時に出る電車", "明日の8時発で吉祥寺から東京まで", "明日8時に吉祥寺を出て東京へ行く乗り換え"]
       at: "21:00"
       params: {from: 吉祥寺, to: 東京, time: "08:00", arrive_type: 出発}
     - say: 9時40分までに中野から戸塚
+      variants: ["中野から戸塚、9時40分までに着く電車", "9時40分に戸塚に着くように中野から", "中野発で9時40分着の戸塚までの乗り換え"]
       at: "07:00"
       params: {from: 中野, to: 戸塚, time: "09:40", arrive_type: 到着}
     - say: 中野坂上から荻窪、18時までに着きたい
+      variants: ["18時までに荻窪に着く電車を中野坂上から", "中野坂上から荻窪、18時着で", "18時に荻窪に着くように中野坂上から乗り換え"]
       at: "17:00"
       params: {from: 中野坂上, to: 荻窪, time: "18:00", arrive_type: 到着}
     - say: 12時着で品川から横浜
+      variants: ["品川から横浜、12時までに着きたい", "12時に横浜に着く電車を品川から", "品川から横浜まで12時着の乗り換え"]
       at: "10:00"
       params: {from: 品川, to: 横浜, time: "12:00", arrive_type: 到着}
     - say: 明日の朝9時40分までに戸塚に移動できる乗り換え
+      variants: ["明日の朝9時40分に戸塚に着く電車", "明日の朝、戸塚に9時40分までに着く行き方", "明日9時40分までに戸塚に着く乗り換え"]
       at: "22:00"
       params: {to: 戸塚, time: "09:40", arrive_type: 到着}
 

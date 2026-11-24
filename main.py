@@ -513,15 +513,77 @@ def build_route_view(route: dict) -> dict:
         "fare":             route.get("fare", 0),
         "transfers":        route.get("transfers", 0),
         "itinerary":        route.get("itinerary", []),
+        "delay_minutes":    route.get("delay_minutes", 0),
+        "arrival_expected": route.get("arrival_expected", ""),
+        "service_status":   route.get("service_status", ""),
     }
+
+
+# ── 遅れ ─────────────────────────────────────────────────────────────────────
+#
+# 結果ページは遅れている列車に定刻と見込みを並べ（<span class="original">22:47
+# </span><span class="delay">23:02</span>）、走行中の列車に「15分遅れ見込み」、
+# 路線に運行状況（「列車遅延」）を付ける。行に落とす前の HTML から、ルートごと
+# （id="route01" 〜）に読む。html_to_lines は見込みを捨てて定刻で読むので、
+# ここが遅れを知る唯一の場所。
+
+DELAY_PAIR = re.compile(r'(?is)<span class="original">\s*(\d{1,2}:\d{2})\s*</span>\s*<span class="delay">\s*(\d{1,2}:\d{2})\s*</span>')
+DELAY_LATE = re.compile(r'(?is)<span class="delay">\s*(\d+)分遅れ')
+SERVICE_STATUS = re.compile(r'(?is)<li class="serviceStatus">.*?<a [^>]*>(.*?)</a>')
+
+
+def minutes_of(hhmm: str) -> int:
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def route_delays(html: str) -> dict[int, dict]:
+    """ルート番号（1〜）ごとの遅れ: delay_minutes（一番大きい遅れ）、
+    arrival_expected（着駅の見込み時刻。遅れがなければ空）、service_status
+    （運行状況の文言。なければ空）。"""
+    starts = [(int(m.group(1)), m.start()) for m in re.finditer(r'id="route(\d{2})"', html)]
+    out: dict[int, dict] = {}
+    for i, (num, start) in enumerate(starts):
+        end = starts[i + 1][1] if i + 1 < len(starts) else len(html)
+        section = html[start:end]
+        pairs = DELAY_PAIR.findall(section)
+        late = [int(n) for n in DELAY_LATE.findall(section)]
+        # 日をまたぐ見込み（23:58→00:03）も前へ進んだ分として数える
+        diffs = [(minutes_of(d) - minutes_of(o)) % (24 * 60) for o, d in pairs]
+        delay = max(diffs + late, default=0)
+        status = ""
+        m = SERVICE_STATUS.search(section)
+        if m:
+            status = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+        out[num] = {
+            "delay_minutes":    delay,
+            "arrival_expected": pairs[-1][1] if pairs else "",
+            "service_status":   status,
+        }
+    return out
+
+
+def is_late(route: dict, time_str: str, dep_arr: str) -> bool:
+    """「〜までに着く」検索で、遅れ込みの到着が指定時刻を過ぎたか。"""
+    if dep_arr != "到着" or not time_str:
+        return False
+    arrival = route.get("arrival_expected") or route.get("arrival") or ""
+    if not re.match(r"^\d{1,2}:\d{2}$", arrival):
+        return False
+    return (minutes_of(arrival) - minutes_of(time_str)) % (24 * 60) in range(1, 12 * 60)
 
 
 # ── メイン ───────────────────────────────────────────────────────────────────
 
 def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) -> dict:
-    lines = html_to_lines(fetch_page(build_search_url(from_st, to_st, time_str, dep_arr)))
+    html = fetch_page(build_search_url(from_st, to_st, time_str, dep_arr))
+    lines = html_to_lines(html)
 
     routes = parse_routes_from_lines(lines)
+    delays = route_delays(html)
+    for route in routes:
+        route.update(delays.get(route.get("index", 0), {
+            "delay_minutes": 0, "arrival_expected": "", "service_status": ""}))
 
     # route["summary"] をテキストから構造化JSON文字列（itinerary込み）に置き換える。
     # build_route_summary は TEXT summary を先に読んでから上書きするため順序に注意。
@@ -539,6 +601,8 @@ def search_and_extract(from_st: str, to_st: str, time_str: str, dep_arr: str) ->
         "routes":      routes,
         "route_views": [build_route_view(r) for r in routes],
         "raw_text":    "\n".join(lines[:80]),
+        # 一番目のルートで、指定の到着時刻に間に合わなくなったか（timing late）
+        "late":        bool(routes) and is_late(routes[0], time_str, dep_arr),
     }
 
 
