@@ -90,6 +90,9 @@ wantType:
       # deployed 「銀座から中野坂上」 as from=中野坂上, to=銀座.
       "param-marker/from": "から,発"
       "param-marker/to": "まで,へ,行き,に行,に移動"
+      # Where to, when not said: where the person is going now, read from
+      # what they asked before (the engine's user_context.go).
+      context/to: destination
       type-icon: TrainFront
       category-icon: TrainFront
       category-bg-light: "linear-gradient(160deg, #a5f3fc 0%, #e0f9ff 100%)"
